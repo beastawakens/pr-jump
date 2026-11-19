@@ -37,7 +37,11 @@ homebrew_casks:
     repository:
       owner: beastawakens
       name: homebrew-tap
-      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+      branch: main
+      # Pushes with a deploy key that can write to this one repository.
+      git:
+        url: git@github.com:beastawakens/homebrew-tap.git
+        private_key: "{{ .Env.HOMEBREW_TAP_DEPLOY_KEY }}"
     homepage: https://github.com/beastawakens/pr-jump
     description: Jump from a PR number in your browser's address bar to the pull request
     license: MIT
@@ -56,7 +60,10 @@ scoops:
     repository:
       owner: beastawakens
       name: scoop-bucket
-      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+      branch: main
+      git:
+        url: git@github.com:beastawakens/scoop-bucket.git
+        private_key: "{{ .Env.SCOOP_BUCKET_DEPLOY_KEY }}"
     homepage: https://github.com/beastawakens/pr-jump
     description: Type a pull request number in your browser's address bar and go straight to the PR.
     license: MIT

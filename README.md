@@ -151,6 +151,6 @@ go test -race ./...
 
 The install tests use stand-ins for `launchctl`, `systemctl`, `reg` and `taskkill`, so they never change your login items. CI also installs pr-jump as a real login item on macOS, Linux and Windows, checks it answers, and removes it again.
 
-To release, push a tag such as `v1.0.0`. GoReleaser builds every archive and package, publishes the GitHub release, and updates the Homebrew tap and Scoop bucket.
+To release, push a tag such as `v1.0.0`. GoReleaser builds every archive and package, publishes the GitHub release, and updates the Homebrew tap and Scoop bucket. It pushes to the tap and bucket with deploy keys stored in this repository's `HOMEBREW_TAP_DEPLOY_KEY` and `SCOOP_BUCKET_DEPLOY_KEY` secrets. Each key can write only to its own repository.
 
 The macOS binary is not signed by Apple. The Homebrew cask removes macOS's quarantine flag so it can run.

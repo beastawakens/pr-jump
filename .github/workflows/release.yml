@@ -23,6 +23,7 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Pushes the Homebrew cask and Scoop manifest to beastawakens/homebrew-tap and
-          # beastawakens/scoop-bucket. Needs contents read and write on both.
-          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+          # Deploy keys with write access to beastawakens/homebrew-tap and
+          # beastawakens/scoop-bucket, for the Homebrew cask and Scoop manifest.
+          HOMEBREW_TAP_DEPLOY_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+          SCOOP_BUCKET_DEPLOY_KEY: ${{ secrets.SCOOP_BUCKET_DEPLOY_KEY }}
