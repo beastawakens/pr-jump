@@ -136,32 +136,56 @@ func TestInstallLinux(t *testing.T) {
 func TestInstallWindows(t *testing.T) {
 	s, ran := fakeService(t, "windows")
 	s.exe = `C:\Program Files\pr-jump\pr-jump.exe`
+	dataDir := t.TempDir()
+	logPath := filepath.Join(dataDir, "server.log")
 	var out strings.Builder
-	if err := install(s, serveArgs, `C:\Users\me\.local\share\pr-jump`, &out); err != nil {
+
+	// No login item running yet: nothing to stop.
+	if err := install(s, serveArgs, dataDir, &out); err != nil {
 		t.Fatal(err)
 	}
-	commandLine := `"C:\Program Files\pr-jump\pr-jump.exe" --port 7777 --refresh 2m0s --data-dir /data/pr-jump --owner acme&co --background --log C:\Users\me\.local\share\pr-jump` +
-		string(filepath.Separator) + "server.log"
+	commandLine := `"C:\Program Files\pr-jump\pr-jump.exe" --port 7777 --refresh 2m0s --data-dir /data/pr-jump --owner acme&co --background --log ` +
+		windowsCommandLine([]string{logPath})
 	want := []string{
 		`reg add HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v pr-jump /t REG_SZ /d ` + commandLine + ` /f`,
-		"taskkill /F /IM pr-jump.exe /FI PID ne 4242 /FI PID ne 4141",
-		`START C:\Program Files\pr-jump\pr-jump.exe --port 7777`,
+		`START C:\Program Files\pr-jump\pr-jump.exe --port 7777 --refresh 2m0s --data-dir /data/pr-jump --owner acme&co --background --log ` + logPath,
 	}
-	if len(*ran) != 3 {
-		t.Fatalf("ran %q", *ran)
+	if strings.Join(*ran, "\n") != strings.Join(want, "\n") {
+		t.Errorf("ran:\n%s\nwant:\n%s", strings.Join(*ran, "\n"), strings.Join(want, "\n"))
 	}
-	for i, w := range want {
-		if !strings.HasPrefix((*ran)[i], w) {
-			t.Errorf("step %d:\n%s\nwant prefix:\n%s", i, (*ran)[i], w)
-		}
+
+	// The login item is running: stop that process only, and only if it is still pr-jump.
+	if err := os.WriteFile(filepath.Join(dataDir, pidFileName), []byte("999\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	*ran = nil
+	if err := install(s, serveArgs, dataDir, &out); err != nil {
+		t.Fatal(err)
+	}
+	if len(*ran) != 3 || (*ran)[1] != "taskkill /F /PID 999 /FI IMAGENAME eq pr-jump.exe" {
+		t.Errorf("ran %q", *ran)
 	}
 
 	*ran = nil
-	if err := uninstall(s, "dir", &out); err != nil {
+	if err := uninstall(s, dataDir, &out); err != nil {
 		t.Fatal(err)
 	}
-	if len(*ran) != 2 || !strings.HasPrefix((*ran)[0], "reg delete") || !strings.HasPrefix((*ran)[1], "taskkill") {
+	if len(*ran) != 2 || !strings.HasPrefix((*ran)[0], "reg delete") || (*ran)[1] != "taskkill /F /PID 999 /FI IMAGENAME eq pr-jump.exe" {
 		t.Errorf("uninstall ran %q", *ran)
+	}
+}
+
+func TestStopWindowsSparesThisProcessAndItsParent(t *testing.T) {
+	s, ran := fakeService(t, "windows")
+	dataDir := t.TempDir()
+	for _, pid := range []string{"4242", "4141", "not a number"} {
+		if err := os.WriteFile(filepath.Join(dataDir, pidFileName), []byte(pid), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		s.stopWindows(dataDir)
+	}
+	if len(*ran) != 0 {
+		t.Errorf("ran %q", *ran)
 	}
 }
 

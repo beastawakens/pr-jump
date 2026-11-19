@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -559,7 +560,8 @@ func TestOwnerList(t *testing.T) {
 }
 
 func TestRunUsage(t *testing.T) {
-	for _, args := range [][]string{{}, {"--port", "1"}, {"--owner", "acme", "extra"}, {"--nope"}} {
+	for _, args := range [][]string{{}, {"--port", "1"}, {"--owner", "acme", "extra"}, {"--nope"},
+		{"--owner", "acme", "--refresh", "0s"}, {"--owner", "acme", "--refresh", "-1s"}} {
 		if err := run(args, io.Discard); err != errUsage {
 			t.Errorf("run(%q) = %v; want a usage error", args, err)
 		}
@@ -579,5 +581,31 @@ func TestSearchURLIsEscaped(t *testing.T) {
 	}
 	if q := u.Query().Get("q"); q != "is:pr user:acme user:other a&b=c sort:created-desc" {
 		t.Error(q)
+	}
+}
+
+func TestRunLogsWhyItStopped(t *testing.T) {
+	github := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, map[string]any{"login": "acme"})
+	}))
+	t.Cleanup(github.Close)
+	saved := githubAPI
+	githubAPI = github.URL
+	t.Cleanup(func() { githubAPI = saved })
+	t.Setenv("GITHUB_TOKEN", "test-token")
+
+	dir := t.TempDir()
+	notADir := filepath.Join(dir, "file")
+	if err := os.WriteFile(notADir, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	logPath := filepath.Join(dir, "server.log")
+	err := run([]string{"--owner", "acme", "--data-dir", filepath.Join(notADir, "sub"), "--log", logPath}, io.Discard)
+	if err == nil {
+		t.Fatal("want an error from a data folder inside a file")
+	}
+	data, _ := os.ReadFile(logPath)
+	if !strings.Contains(string(data), "stopped: ") {
+		t.Errorf("log does not say why pr-jump stopped: %q", data)
 	}
 }

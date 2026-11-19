@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -24,6 +25,9 @@ import (
 )
 
 var version = "dev" // Set at release time.
+
+// githubAPI is the GitHub API address. Tests point it at a fake.
+var githubAPI = "https://api.github.com"
 
 type app struct {
 	owners   []string
@@ -41,7 +45,7 @@ type app struct {
 func newApp(owners []string, logger *log.Logger) *app {
 	return &app{
 		owners: owners,
-		api:    "https://api.github.com",
+		api:    githubAPI,
 		client: &http.Client{Timeout: 30 * time.Second},
 		token:  ghToken,
 		sleep:  time.Sleep,
@@ -201,6 +205,10 @@ func run(args []string, stderr io.Writer) (err error) {
 	if command == "uninstall" {
 		return uninstall(newService(), dir, stderr)
 	}
+	if *every <= 0 {
+		fmt.Fprintln(stderr, "pr-jump: --refresh must be longer than zero")
+		return errUsage
+	}
 	if len(owners) == 0 {
 		fmt.Fprintln(stderr, "pr-jump: name at least one --owner")
 		flags.Usage()
@@ -209,9 +217,9 @@ func run(args []string, stderr io.Writer) (err error) {
 
 	logger := log.New(stderr, "", log.LstdFlags)
 	if *logFile != "" {
-		f, err := os.OpenFile(*logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
-		if err != nil {
-			return err
+		f, openErr := os.OpenFile(*logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+		if openErr != nil {
+			return openErr
 		}
 		defer f.Close()
 		logger.SetOutput(f)
@@ -259,6 +267,14 @@ func run(args []string, stderr io.Writer) (err error) {
 	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", *port))
 	if err != nil {
 		return err
+	}
+	if *background {
+		// Lets install and uninstall stop this copy, and only this copy.
+		pidFile := filepath.Join(dir, pidFileName)
+		if err := os.WriteFile(pidFile, []byte(strconv.Itoa(os.Getpid())), 0o600); err != nil {
+			return err
+		}
+		defer os.Remove(pidFile)
 	}
 	go a.background(*every)
 	a.log.Printf("serving http://127.0.0.1:%d/?q=%%s for %s", *port, strings.Join(a.owners, ", "))

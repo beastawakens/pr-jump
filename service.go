@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -18,6 +19,7 @@ const (
 	launchdLabel  = "local.pr-jump"
 	systemdUnit   = "pr-jump.service"
 	windowsRunKey = `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
+	pidFileName   = "pr-jump.pid" // Written by the Windows login item.
 )
 
 // service holds what install and uninstall need from the system, so tests can replace it.
@@ -151,7 +153,7 @@ func install(s service, serveArgs []string, dataDir string, out io.Writer) error
 		if err := s.run("reg", "add", windowsRunKey, "/v", "pr-jump", "/t", "REG_SZ", "/d", windowsCommandLine(args), "/f"); err != nil {
 			return err
 		}
-		s.stopWindows()
+		s.stopWindows(dataDir)
 		if err := s.start(args[0], args[1:]...); err != nil {
 			return err
 		}
@@ -177,7 +179,7 @@ func uninstall(s service, dataDir string, out io.Writer) error {
 		_ = s.run("systemctl", "--user", "daemon-reload")
 	case "windows":
 		_ = s.run("reg", "delete", windowsRunKey, "/v", "pr-jump", "/f")
-		s.stopWindows()
+		s.stopWindows(dataDir)
 	default:
 		return fmt.Errorf("pr-jump does not install itself on %s, so there is nothing to remove", s.goos)
 	}
@@ -185,11 +187,19 @@ func uninstall(s service, dataDir string, out io.Writer) error {
 	return nil
 }
 
-// stopWindows ends any other running pr-jump, so a new one can use the port. It spares this
-// process and its parent: killing Scoop's shim would kill this process too.
-func (s service) stopWindows() {
-	_ = s.run("taskkill", "/F", "/IM", "pr-jump.exe",
-		"/FI", fmt.Sprintf("PID ne %d", s.pid), "/FI", fmt.Sprintf("PID ne %d", s.ppid))
+// stopWindows ends the running login item, so a new one can use the port. It stops only the
+// process the login item recorded, and only if that process is still pr-jump, so copies
+// started by hand keep running.
+func (s service) stopWindows(dataDir string) {
+	data, err := os.ReadFile(filepath.Join(dataDir, pidFileName))
+	if err != nil {
+		return
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil || pid == s.pid || pid == s.ppid {
+		return
+	}
+	_ = s.run("taskkill", "/F", "/PID", strconv.Itoa(pid), "/FI", "IMAGENAME eq pr-jump.exe")
 }
 
 func writeFile(path, content string) error {
