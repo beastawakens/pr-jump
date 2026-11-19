@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -25,20 +26,37 @@ type httpError struct {
 
 func (e *httpError) Error() string { return fmt.Sprintf("GitHub returned HTTP %d: %s", e.code, e.body) }
 
-// ghToken reads GITHUB_TOKEN, or asks the GitHub CLI.
+const tokenLifetime = 5 * time.Minute
+
+var tokenCache struct {
+	sync.Mutex
+	token   string
+	fetched time.Time
+}
+
+// ghToken reads GITHUB_TOKEN, or asks the GitHub CLI. It keeps gh's answer for a few minutes,
+// because a rebuild makes hundreds of requests.
 func ghToken() (string, error) {
 	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
 		return token, nil
+	}
+	tokenCache.Lock()
+	defer tokenCache.Unlock()
+	if tokenCache.token != "" && time.Since(tokenCache.fetched) < tokenLifetime {
+		return tokenCache.token, nil
 	}
 	gh, err := exec.LookPath("gh")
 	if err != nil {
 		return "", errors.New("set GITHUB_TOKEN, or install the GitHub CLI (gh) and run 'gh auth login'")
 	}
-	out, err := exec.Command(gh, "auth", "token").Output()
+	cmd := exec.Command(gh, "auth", "token")
+	hideWindow(cmd) // On Windows, a login item has no console, so gh would open a window.
+	out, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("gh auth token: %w", err)
 	}
-	return strings.TrimSpace(string(out)), nil
+	tokenCache.token, tokenCache.fetched = strings.TrimSpace(string(out)), time.Now()
+	return tokenCache.token, nil
 }
 
 // call sends one GitHub API request and decodes the JSON answer into out, retrying network

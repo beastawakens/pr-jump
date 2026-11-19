@@ -31,7 +31,11 @@ scoop install pr-jump
 
 ### Debian, Ubuntu, Fedora, Alpine and others
 
-Download the `.deb`, `.rpm` or `.apk` package for your system from the [latest release](https://github.com/beastawakens/pr-jump/releases/latest), then install it, for example with `sudo apt install ./pr-jump_*_linux_amd64.deb`.
+Download the `.deb`, `.rpm` or `.apk` package for your system from the [latest release](https://github.com/beastawakens/pr-jump/releases/latest), then install it:
+
+- Debian and Ubuntu: `sudo apt install ./pr-jump_*_linux_amd64.deb`
+- Fedora and RHEL: `sudo dnf install ./pr-jump_*_linux_amd64.rpm`
+- Alpine: `sudo apk add --allow-untrusted ./pr-jump_*_linux_amd64.apk`, because the package is not signed
 
 ### With Go, or by hand
 
@@ -56,6 +60,8 @@ This checks the owners exist, then starts pr-jump straight away and at every log
 The first index takes about a minute for 25,000 PRs. Until it finishes, lookups go to GitHub's search page instead.
 
 Run `pr-jump install` again to change the owners or port, or after upgrading pr-jump so the new version starts. To stop it starting at login, run `pr-jump uninstall`.
+
+On Windows, Scoop cannot update pr-jump while it is running. Run `pr-jump uninstall`, then `scoop update pr-jump`, then `pr-jump install` with your owners again.
 
 To run it in a terminal instead, without installing, run `pr-jump --owner my-org`. That can also use a `GITHUB_TOKEN` environment variable instead of the GitHub CLI. The login item cannot, because it does not see your shell's environment.
 

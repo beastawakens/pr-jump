@@ -27,6 +27,7 @@ func fakeService(t *testing.T, goos string) (service, *[]string) {
 		exe:       "/opt/pr jump/bin/pr-jump",
 		gh:        "/opt/homebrew/bin/gh",
 		pid:       4242,
+		ppid:      4141,
 		run:       record,
 		start: func(name string, args ...string) error {
 			return record("START "+name, args...)
@@ -46,7 +47,16 @@ func read(t *testing.T, path string) string {
 	return string(data)
 }
 
+// skipOnWindows skips tests of macOS and Linux paths, which use forward slashes.
+func skipOnWindows(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("checks Unix paths")
+	}
+}
+
 func TestInstallMacOS(t *testing.T) {
+	skipOnWindows(t)
 	s, ran := fakeService(t, "darwin")
 	var out strings.Builder
 	if err := install(s, serveArgs, "/data/pr-jump", &out); err != nil {
@@ -88,6 +98,7 @@ func TestInstallMacOS(t *testing.T) {
 }
 
 func TestInstallLinux(t *testing.T) {
+	skipOnWindows(t)
 	s, ran := fakeService(t, "linux")
 	var out strings.Builder
 	if err := install(s, serveArgs, "/data/pr-jump", &out); err != nil {
@@ -129,11 +140,11 @@ func TestInstallWindows(t *testing.T) {
 	if err := install(s, serveArgs, `C:\Users\me\.local\share\pr-jump`, &out); err != nil {
 		t.Fatal(err)
 	}
-	commandLine := `"C:\Program Files\pr-jump\pr-jump.exe" --port 7777 --refresh 2m0s --data-dir /data/pr-jump --owner acme&co --log C:\Users\me\.local\share\pr-jump` +
+	commandLine := `"C:\Program Files\pr-jump\pr-jump.exe" --port 7777 --refresh 2m0s --data-dir /data/pr-jump --owner acme&co --background --log C:\Users\me\.local\share\pr-jump` +
 		string(filepath.Separator) + "server.log"
 	want := []string{
 		`reg add HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v pr-jump /t REG_SZ /d ` + commandLine + ` /f`,
-		"taskkill /F /IM pr-jump.exe /FI PID ne 4242",
+		"taskkill /F /IM pr-jump.exe /FI PID ne 4242 /FI PID ne 4141",
 		`START C:\Program Files\pr-jump\pr-jump.exe --port 7777`,
 	}
 	if len(*ran) != 3 {

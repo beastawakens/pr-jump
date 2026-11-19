@@ -45,21 +45,33 @@ jobs:
         run: |
           sudo loginctl enable-linger "$USER"
           echo "XDG_RUNTIME_DIR=/run/user/$(id -u)" >> "$GITHUB_ENV"
-      - name: Install, check it answers, uninstall
+      # The login item gets its token from gh, as it would on a laptop.
+      - name: Sign gh in
+        shell: bash
+        run: env -u GITHUB_TOKEN gh auth login --with-token --insecure-storage <<< "$GITHUB_TOKEN"
+      - name: Install, check it finds a real PR, uninstall
         shell: bash
         run: |
           go build -o "$RUNNER_TEMP/bin/" .
           export PATH="$RUNNER_TEMP/bin:$PATH"
           pr-jump install --owner beastawakens --port 7799
-          for i in $(seq 1 30); do
-            status=$(curl -s -o /dev/null -w '%{http_code}' 'http://127.0.0.1:7799/?q=1') && [ "$status" = 302 ] && break
+          # Wait for the first index, then expect a PR page rather than the search page.
+          for i in $(seq 1 120); do
+            location=$(curl -s -o /dev/null -w '%{redirect_url}' -H 'Sec-Fetch-Site: none' 'http://127.0.0.1:7799/?q=1') || true
+            case "$location" in */pull/1) break ;; esac
             sleep 1
           done
-          echo "status: $status"
-          [ "$status" = 302 ]
+          echo "location: $location"
+          case "$location" in */pull/1) ;; *) exit 1 ;; esac
           pr-jump uninstall
           sleep 3
           ! curl -s -o /dev/null 'http://127.0.0.1:7799/?q=1'
+      - name: Show the service log
+        if: failure()
+        shell: bash
+        run: |
+          cat ~/.local/share/pr-jump/server.log 2>/dev/null || true
+          [ "$RUNNER_OS" = Linux ] && journalctl --user -u pr-jump --no-pager | tail -50 || true
 
   goreleaser:
     runs-on: ubuntu-latest

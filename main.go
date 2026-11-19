@@ -156,7 +156,7 @@ Options:
 // errUsage marks a mistake in how pr-jump was run.
 var errUsage = errors.New("usage")
 
-func run(args []string, stderr io.Writer) error {
+func run(args []string, stderr io.Writer) (err error) {
 	command := ""
 	if len(args) > 0 && (args[0] == "install" || args[0] == "uninstall") {
 		command, args = args[0], args[1:]
@@ -169,6 +169,7 @@ func run(args []string, stderr io.Writer) error {
 	every := flags.Duration("refresh", 2*time.Minute, "how often to check for new PRs")
 	dataDir := flags.String("data-dir", defaultDataDir(), "folder for the index")
 	logFile := flags.String("log", "", "append log lines to this file instead of standard error")
+	background := flags.Bool("background", false, "detach from the console (used by the Windows login item)")
 	rebuild := flags.Bool("rebuild", false, "refetch every PR, then exit")
 	validate := flags.Bool("validate", false, "check the owners exist, then exit")
 	showVersion := flags.Bool("version", false, "print the version, then exit")
@@ -181,6 +182,9 @@ func run(args []string, stderr io.Writer) error {
 			return nil
 		}
 		return errUsage
+	}
+	if *background {
+		detachConsole() // Closes the console window Windows opens for a login item.
 	}
 	if flags.NArg() > 0 {
 		fmt.Fprintf(stderr, "pr-jump: unexpected argument %q\n", flags.Arg(0))
@@ -211,6 +215,12 @@ func run(args []string, stderr io.Writer) error {
 		}
 		defer f.Close()
 		logger.SetOutput(f)
+		// The Windows login item has nowhere else to report why it stopped.
+		defer func() {
+			if err != nil {
+				logger.Printf("stopped: %v", err)
+			}
+		}()
 	}
 	a := newApp(owners.sorted(), logger)
 	// Installing or validating needs a definite answer; serving must start even offline.
@@ -249,9 +259,6 @@ func run(args []string, stderr io.Writer) error {
 	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", *port))
 	if err != nil {
 		return err
-	}
-	if *logFile != "" {
-		detachConsole() // Windows login items run with --log; this closes their console window.
 	}
 	go a.background(*every)
 	a.log.Printf("serving http://127.0.0.1:%d/?q=%%s for %s", *port, strings.Join(a.owners, ", "))

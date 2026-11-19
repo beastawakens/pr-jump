@@ -28,6 +28,7 @@ type service struct {
 	exe       string // this program
 	gh        string // the GitHub CLI, or "" if missing
 	pid       int
+	ppid      int                                     // Scoop's shim, also called pr-jump.exe, when run through Scoop
 	run       func(name string, args ...string) error // runs a command and waits
 	start     func(name string, args ...string) error // starts a command in the background
 	sleep     func(time.Duration)
@@ -50,6 +51,7 @@ func newService() service {
 		exe:       executablePath(),
 		gh:        gh,
 		pid:       os.Getpid(),
+		ppid:      os.Getppid(),
 		run: func(name string, args ...string) error {
 			out, err := exec.Command(name, args...).CombinedOutput()
 			if err != nil {
@@ -145,7 +147,7 @@ func install(s service, serveArgs []string, dataDir string, out io.Writer) error
 		fmt.Fprintln(out, "Installed. pr-jump now starts at login. The first index takes a minute or two; "+
 			"see progress with: journalctl --user -u pr-jump -f")
 	case "windows":
-		args = append(args, "--log", logPath)
+		args = append(args, "--background", "--log", logPath)
 		if err := s.run("reg", "add", windowsRunKey, "/v", "pr-jump", "/t", "REG_SZ", "/d", windowsCommandLine(args), "/f"); err != nil {
 			return err
 		}
@@ -183,9 +185,11 @@ func uninstall(s service, dataDir string, out io.Writer) error {
 	return nil
 }
 
-// stopWindows ends any other running pr-jump, so a new one can use the port.
+// stopWindows ends any other running pr-jump, so a new one can use the port. It spares this
+// process and its parent: killing Scoop's shim would kill this process too.
 func (s service) stopWindows() {
-	_ = s.run("taskkill", "/F", "/IM", "pr-jump.exe", "/FI", fmt.Sprintf("PID ne %d", s.pid))
+	_ = s.run("taskkill", "/F", "/IM", "pr-jump.exe",
+		"/FI", fmt.Sprintf("PID ne %d", s.pid), "/FI", fmt.Sprintf("PID ne %d", s.ppid))
 }
 
 func writeFile(path, content string) error {
