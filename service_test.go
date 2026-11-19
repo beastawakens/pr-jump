@@ -269,7 +269,7 @@ func TestInstallOpensSetupPage(t *testing.T) {
 		if last := (*ran)[len(*ran)-1]; last != want {
 			t.Errorf("%s: last step %q; want %q", goos, last, want)
 		}
-		if !strings.Contains(out.String(), "Opened http://127.0.0.1:7777/") {
+		if !strings.Contains(out.String(), "Opening http://127.0.0.1:7777/") {
 			t.Errorf("%s: %q", goos, out.String())
 		}
 	}

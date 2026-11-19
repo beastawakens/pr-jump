@@ -193,7 +193,7 @@ func install(s service, serveArgs []string, dataDir, setupURL string, out io.Wri
 	}
 	if setupURL != "" {
 		if s.ready(setupURL) && s.openBrowser(setupURL) == nil {
-			fmt.Fprintf(out, "Opened %s in your browser. It shows how to add the pr shortcut.\n", setupURL)
+			fmt.Fprintf(out, "Opening %s in your browser. It shows how to add the pr shortcut; if nothing opens, go there yourself.\n", setupURL)
 		} else {
 			fmt.Fprintf(out, "Next, open %s in your browser. It shows how to add the pr shortcut.\n", setupURL)
 		}
