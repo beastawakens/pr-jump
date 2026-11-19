@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -34,6 +35,7 @@ type service struct {
 	run       func(name string, args ...string) error // runs a command and waits
 	start     func(name string, args ...string) error // starts a command in the background
 	sleep     func(time.Duration)
+	ready     func(url string) bool // waits until the new login item answers
 }
 
 func newService() service {
@@ -63,6 +65,32 @@ func newService() service {
 		},
 		start: startDetached,
 		sleep: time.Sleep,
+		ready: waitUntilServing,
+	}
+}
+
+// waitUntilServing polls the login item for up to 10 seconds.
+func waitUntilServing(url string) bool {
+	client := &http.Client{Timeout: time.Second}
+	for i := 0; i < 20; i++ {
+		if resp, err := client.Get(url); err == nil {
+			resp.Body.Close()
+			return true
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	return false
+}
+
+// openBrowser opens a page in the default browser.
+func (s service) openBrowser(url string) error {
+	switch s.goos {
+	case "darwin":
+		return s.start("open", url)
+	case "windows":
+		return s.start("rundll32", "url.dll,FileProtocolHandler", url)
+	default:
+		return s.start("xdg-open", url)
 	}
 }
 
@@ -109,7 +137,9 @@ func (s service) servicePath() string {
 	return filepath.Dir(s.gh) + ":/usr/bin:/bin"
 }
 
-func install(s service, serveArgs []string, dataDir string, out io.Writer) error {
+// install sets pr-jump up as a login item and starts it. If setupURL is not empty, it then
+// opens the setup page there, which helps add the browser shortcut.
+func install(s service, serveArgs []string, dataDir, setupURL string, out io.Writer) error {
 	if s.gh == "" {
 		return errors.New("install the GitHub CLI (gh) and run 'gh auth login' first: " +
 			"the login item gets its token from gh, because it cannot see GITHUB_TOKEN from your shell")
@@ -160,6 +190,13 @@ func install(s service, serveArgs []string, dataDir string, out io.Writer) error
 		fmt.Fprintf(out, "Installed. pr-jump now starts at login. The first index takes a minute or two; progress goes to %s.\n", logPath)
 	default:
 		return fmt.Errorf("pr-jump cannot install itself on %s; run it with --owner from your own startup script", s.goos)
+	}
+	if setupURL != "" {
+		if s.ready(setupURL) && s.openBrowser(setupURL) == nil {
+			fmt.Fprintf(out, "Opened %s in your browser. It shows how to add the pr shortcut.\n", setupURL)
+		} else {
+			fmt.Fprintf(out, "Next, open %s in your browser. It shows how to add the pr shortcut.\n", setupURL)
+		}
 	}
 	return nil
 }

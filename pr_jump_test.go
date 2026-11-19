@@ -543,7 +543,7 @@ func TestServer(t *testing.T) {
 	if status, _ := get("attacker.example:"+port, ""); status != http.StatusForbidden {
 		t.Errorf("other host name: %d; want 403", status)
 	}
-	for _, site := range []string{"cross-site", "same-site", "same-origin"} {
+	for _, site := range []string{"cross-site", "same-site"} {
 		if status, _ := get("127.0.0.1:"+port, site); status != http.StatusForbidden {
 			t.Errorf("Sec-Fetch-Site %s: %d; want 403", site, status)
 		}
@@ -607,5 +607,80 @@ func TestRunLogsWhyItStopped(t *testing.T) {
 	data, _ := os.ReadFile(logPath)
 	if !strings.Contains(string(data), "stopped: ") {
 		t.Errorf("log does not say why pr-jump stopped: %q", data)
+	}
+}
+
+func TestSetupPage(t *testing.T) {
+	a, _ := newTestApp(t, nil)
+	server := httptest.NewServer(a)
+	t.Cleanup(server.Close)
+	get := func(path, site string) (int, string, string) {
+		req, _ := http.NewRequest(http.MethodGet, server.URL+path, nil)
+		if site != "" {
+			req.Header.Set("Sec-Fetch-Site", site)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		body, _ := io.ReadAll(resp.Body)
+		return resp.StatusCode, resp.Header.Get("Content-Type"), string(body)
+	}
+	host := strings.TrimPrefix(server.URL, "http://")
+
+	status, kind, body := get("/", "none")
+	if status != http.StatusOK || !strings.HasPrefix(kind, "text/html") {
+		t.Fatalf("setup page: %d %s", status, kind)
+	}
+	for _, want := range []string{
+		"Indexing 5 pull requests for acme, other.",
+		`<code id="template">http://` + host + `/?q=%s</code>`,
+		`<link rel="search" type="application/opensearchdescription+xml" title="pr-jump" href="/opensearch.xml">`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("setup page lacks %s", want)
+		}
+	}
+
+	// The browser fetches this from the setup page, so same-origin requests must work.
+	status, kind, body = get("/opensearch.xml", "same-origin")
+	if status != http.StatusOK || kind != "application/opensearchdescription+xml" {
+		t.Fatalf("opensearch.xml: %d %s", status, kind)
+	}
+	if !strings.Contains(body, `template="http://`+host+`/?q={searchTerms}"`) {
+		t.Errorf("opensearch.xml: %s", body)
+	}
+
+	if status, _, _ := get("/", "cross-site"); status != http.StatusForbidden {
+		t.Errorf("setup page from another site: %d; want 403", status)
+	}
+	// An empty query still goes to search, rather than to the setup page.
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	resp, err := client.Get(server.URL + "/?q=")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusFound {
+		t.Errorf("empty query: %d; want 302", resp.StatusCode)
+	}
+}
+
+func TestThousands(t *testing.T) {
+	for n, want := range map[int]string{0: "", 7: "7", 999: "999", 1000: "1,000", 27287: "27,287", 1234567: "1,234,567"} {
+		if got := thousands(n); got != want {
+			t.Errorf("thousands(%d) = %q; want %q", n, got, want)
+		}
+	}
+}
+
+func TestSetupPageWhileIndexBuilds(t *testing.T) {
+	a, _ := newTestApp(t, nil)
+	emptyIndex(t, a)
+	rec := httptest.NewRecorder()
+	a.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7777/", nil))
+	if !strings.Contains(rec.Body.String(), "Building the index for acme, other.") {
+		t.Errorf("page: %s", rec.Body.String())
 	}
 }

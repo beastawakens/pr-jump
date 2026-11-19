@@ -67,6 +67,10 @@ To run it in a terminal instead, without installing, run `pr-jump --owner my-org
 
 ## Set up your browser
 
+`pr-jump install` finishes by opening a setup page at `http://127.0.0.1:7777/`. It shows the steps for your browser, with a button to copy the address. Opening it also tells Chrome, Brave, Edge and Opera about pr-jump, so you only need to activate it in their settings and set its shortcut to `pr`. Firefox offers to add it from the address bar. Open the page again at any time; it also shows how many pull requests pr-jump has indexed.
+
+Browsers do not let other programs change their search settings, so this last step is yours. The steps below do the same by hand.
+
 Each browser needs a search shortcut that sends what you type after `pr` to this address:
 
 ```

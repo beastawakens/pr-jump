@@ -79,19 +79,27 @@ func (a *app) destination(query string) string {
 	return "https://github.com/pulls?q=" + url.QueryEscape(search)
 }
 
-// ServeHTTP answers only navigations the user started, sent to localhost. Other sites' pages
-// could otherwise probe the index (cross-site requests) or read it (DNS rebinding).
+// ServeHTTP answers only navigations the user started and pr-jump's own setup page, sent to
+// localhost. Other sites' pages could otherwise probe the index (cross-site requests) or read
+// it (DNS rebinding).
 func (a *app) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	host := r.Host
 	if h, _, err := net.SplitHostPort(host); err == nil {
 		host = h
 	}
 	site := r.Header.Get("Sec-Fetch-Site")
-	if (host != "127.0.0.1" && host != "localhost") || (site != "" && site != "none") {
+	if (host != "127.0.0.1" && host != "localhost") || (site != "" && site != "none" && site != "same-origin") {
 		http.Error(w, "pr-jump only answers addresses typed into this computer's browser", http.StatusForbidden)
 		return
 	}
-	http.Redirect(w, r, a.destination(r.URL.Query().Get("q")), http.StatusFound)
+	switch {
+	case r.URL.Path == "/opensearch.xml":
+		a.serveOpenSearch(w, r)
+	case r.URL.Path == "/" && !r.URL.Query().Has("q"):
+		a.serveSetup(w, r)
+	default:
+		http.Redirect(w, r, a.destination(r.URL.Query().Get("q")), http.StatusFound)
+	}
 }
 
 func (a *app) background(every time.Duration) {
@@ -177,6 +185,7 @@ func run(args []string, stderr io.Writer) (err error) {
 	rebuild := flags.Bool("rebuild", false, "refetch every PR, then exit")
 	validate := flags.Bool("validate", false, "check the owners exist, then exit")
 	showVersion := flags.Bool("version", false, "print the version, then exit")
+	noBrowser := flags.Bool("no-browser", false, "with install, do not open the setup page")
 	flags.Usage = func() {
 		_, _ = io.WriteString(stderr, usage)
 		flags.PrintDefaults()
@@ -254,7 +263,11 @@ func run(args []string, stderr io.Writer) (err error) {
 		for _, owner := range a.owners {
 			serveArgs = append(serveArgs, "--owner", owner)
 		}
-		return install(newService(), serveArgs, dir, stderr)
+		setupURL := fmt.Sprintf("http://127.0.0.1:%d/", *port)
+		if *noBrowser {
+			setupURL = ""
+		}
+		return install(newService(), serveArgs, dir, setupURL, stderr)
 	}
 
 	if a.db, err = openIndex(filepath.Join(dir, strings.Join(a.owners, "+")+".db")); err != nil {
