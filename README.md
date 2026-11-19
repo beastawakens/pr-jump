@@ -1,6 +1,15 @@
 # pr-jump
 
+[![Test](https://github.com/beastawakens/pr-jump/actions/workflows/test.yml/badge.svg)](https://github.com/beastawakens/pr-jump/actions/workflows/test.yml)
+[![Release](https://img.shields.io/github/v/release/beastawakens/pr-jump)](https://github.com/beastawakens/pr-jump/releases/latest)
+[![License: MIT](https://img.shields.io/github/license/beastawakens/pr-jump)](LICENSE)
+
 Type `pr 5219` in your browser's address bar and go straight to pull request #5219, whichever repository it is in.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/setup-dark.png">
+  <img src="docs/setup-light.png" width="600" alt="The pr-jump setup page. It says pr-jump is indexing 5,321 pull requests, shows typing pr 5219 in the address bar, and gives the search address to copy into your browser.">
+</picture>
 
 pr-jump is a small local server that keeps an index of every pull request owned by the GitHub users and organisations you choose. Your browser sends the query to the server, which redirects you to the matching PR on GitHub. A PR that is already in the index opens in a few milliseconds, because the server does not need to ask GitHub.
 

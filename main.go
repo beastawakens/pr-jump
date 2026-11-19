@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net"
 	"net/http"
@@ -258,6 +259,7 @@ func run(args []string, stderr io.Writer) (err error) {
 	if err := os.Chmod(dir, 0o700); err != nil {
 		return err
 	}
+	indexPath := filepath.Join(dir, strings.Join(a.owners, "+")+".db")
 	if command == "install" {
 		serveArgs := []string{"--port", fmt.Sprint(*port), "--refresh", every.String(), "--data-dir", dir}
 		for _, owner := range a.owners {
@@ -267,10 +269,11 @@ func run(args []string, stderr io.Writer) (err error) {
 		if *noBrowser {
 			setupURL = ""
 		}
-		return install(newService(), serveArgs, dir, setupURL, stderr)
+		_, statErr := os.Stat(indexPath)
+		return install(newService(), serveArgs, dir, setupURL, errors.Is(statErr, fs.ErrNotExist), stderr)
 	}
 
-	if a.db, err = openIndex(filepath.Join(dir, strings.Join(a.owners, "+")+".db")); err != nil {
+	if a.db, err = openIndex(indexPath); err != nil {
 		return err
 	}
 	defer a.db.Close()

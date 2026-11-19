@@ -60,7 +60,7 @@ func TestInstallMacOS(t *testing.T) {
 	skipOnWindows(t)
 	s, ran := fakeService(t, "darwin")
 	var out strings.Builder
-	if err := install(s, serveArgs, "/data/pr-jump", "", &out); err != nil {
+	if err := install(s, serveArgs, "/data/pr-jump", "", true, &out); err != nil {
 		t.Fatal(err)
 	}
 	plist := read(t, s.launchdPlistPath())
@@ -102,7 +102,7 @@ func TestInstallLinux(t *testing.T) {
 	skipOnWindows(t)
 	s, ran := fakeService(t, "linux")
 	var out strings.Builder
-	if err := install(s, serveArgs, "/data/pr-jump", "", &out); err != nil {
+	if err := install(s, serveArgs, "/data/pr-jump", "", true, &out); err != nil {
 		t.Fatal(err)
 	}
 	unit := read(t, s.systemdUnitPath())
@@ -142,7 +142,7 @@ func TestInstallWindows(t *testing.T) {
 	var out strings.Builder
 
 	// No login item running yet: nothing to stop.
-	if err := install(s, serveArgs, dataDir, "", &out); err != nil {
+	if err := install(s, serveArgs, dataDir, "", true, &out); err != nil {
 		t.Fatal(err)
 	}
 	commandLine := `"C:\Program Files\pr-jump\pr-jump.exe" --port 7777 --refresh 2m0s --data-dir /data/pr-jump --owner acme&co --background --log ` +
@@ -160,7 +160,7 @@ func TestInstallWindows(t *testing.T) {
 		t.Fatal(err)
 	}
 	*ran = nil
-	if err := install(s, serveArgs, dataDir, "", &out); err != nil {
+	if err := install(s, serveArgs, dataDir, "", true, &out); err != nil {
 		t.Fatal(err)
 	}
 	if len(*ran) != 3 || (*ran)[1] != "taskkill /F /PID 999 /FI IMAGENAME eq pr-jump.exe" {
@@ -193,7 +193,7 @@ func TestStopWindowsSparesThisProcessAndItsParent(t *testing.T) {
 func TestInstallNeedsGh(t *testing.T) {
 	s, ran := fakeService(t, "darwin")
 	s.gh = ""
-	if err := install(s, serveArgs, "/data", "", &strings.Builder{}); err == nil || !strings.Contains(err.Error(), "gh auth login") {
+	if err := install(s, serveArgs, "/data", "", true, &strings.Builder{}); err == nil || !strings.Contains(err.Error(), "gh auth login") {
 		t.Errorf("err = %v", err)
 	}
 	if len(*ran) != 0 {
@@ -203,7 +203,7 @@ func TestInstallNeedsGh(t *testing.T) {
 
 func TestInstallUnsupportedSystem(t *testing.T) {
 	s, _ := fakeService(t, "plan9")
-	if err := install(s, serveArgs, "/data", "", &strings.Builder{}); err == nil {
+	if err := install(s, serveArgs, "/data", "", true, &strings.Builder{}); err == nil {
 		t.Error("want an error")
 	}
 }
@@ -247,7 +247,7 @@ func TestInstallMacOSRetriesBootstrapWhileOldJobStops(t *testing.T) {
 		}
 		return nil
 	}
-	if err := install(s, serveArgs, "/data", "", &strings.Builder{}); err != nil {
+	if err := install(s, serveArgs, "/data", "", true, &strings.Builder{}); err != nil {
 		t.Fatal(err)
 	}
 	if bootstraps != 3 {
@@ -263,7 +263,7 @@ func TestInstallOpensSetupPage(t *testing.T) {
 	} {
 		s, ran := fakeService(t, goos)
 		var out strings.Builder
-		if err := install(s, serveArgs, t.TempDir(), "http://127.0.0.1:7777/", &out); err != nil {
+		if err := install(s, serveArgs, t.TempDir(), "http://127.0.0.1:7777/", true, &out); err != nil {
 			t.Fatal(err)
 		}
 		if last := (*ran)[len(*ran)-1]; last != want {
@@ -279,7 +279,7 @@ func TestInstallTellsYouTheSetupPageWhenNotServingYet(t *testing.T) {
 	s, ran := fakeService(t, "darwin")
 	s.ready = func(string) bool { return false }
 	var out strings.Builder
-	if err := install(s, serveArgs, t.TempDir(), "http://127.0.0.1:7777/", &out); err != nil {
+	if err := install(s, serveArgs, t.TempDir(), "http://127.0.0.1:7777/", true, &out); err != nil {
 		t.Fatal(err)
 	}
 	for _, step := range *ran {
@@ -289,5 +289,22 @@ func TestInstallTellsYouTheSetupPageWhenNotServingYet(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "Next, open http://127.0.0.1:7777/") {
 		t.Errorf("%q", out.String())
+	}
+}
+
+func TestInstallMentionsTheFirstIndexOnlyWhenThereIsNone(t *testing.T) {
+	skipOnWindows(t)
+	for _, first := range []bool{true, false} {
+		s, _ := fakeService(t, "linux")
+		var out strings.Builder
+		if err := install(s, serveArgs, t.TempDir(), "", first, &out); err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.Contains(out.String(), "first index"); got != first {
+			t.Errorf("firstIndex %v: %q", first, out.String())
+		}
+		if !strings.Contains(out.String(), "journalctl --user -u pr-jump -f") {
+			t.Errorf("no log hint: %q", out.String())
+		}
 	}
 }
