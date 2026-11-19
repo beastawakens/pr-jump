@@ -55,15 +55,7 @@ jobs:
           go build -o "$RUNNER_TEMP/bin/" .
           export PATH="$RUNNER_TEMP/bin:$PATH"
           pr-jump install --owner beastawakens --port 7799 --no-browser
-          # Wait for the first index, then expect a PR page rather than the search page.
-          for i in $(seq 1 120); do
-            location=$(curl -s -o /dev/null -w '%{redirect_url}' -H 'Sec-Fetch-Site: none' 'http://127.0.0.1:7799/?q=1') || true
-            case "$location" in */pull/1) break ;; esac
-            sleep 1
-          done
-          echo "location: $location"
-          case "$location" in */pull/1) ;; *) exit 1 ;; esac
-          curl -sf 'http://127.0.0.1:7799/opensearch.xml' | grep -q 'template="http://127.0.0.1:7799/?q={searchTerms}"'
+          .github/check-pr-jump.sh 7799
           pr-jump uninstall
           sleep 3
           ! curl -s -o /dev/null 'http://127.0.0.1:7799/?q=1'
