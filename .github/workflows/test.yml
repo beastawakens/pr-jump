@@ -13,20 +13,71 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          # Python 3.9 is the system Python on macOS; newer Ubuntu runners no longer ship it.
-          - os: ubuntu-24.04
-            python: "3.9"
-          - os: ubuntu-latest
-            python: "3.13"
-          - os: macos-latest
-            python: "3.13"
+        os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-go@v5
         with:
-          python-version: ${{ matrix.python }}
-      - run: python -m unittest -v
-      - if: runner.os == 'Linux'
-        run: shellcheck install-macos.sh
+          go-version-file: go.mod
+      - run: go vet ./...
+      - name: Test
+        shell: bash
+        # The race detector needs cgo, which the Windows runner lacks.
+        run: go test $([ "$RUNNER_OS" = Windows ] || echo -race) ./...
+
+  # Installs pr-jump as a real login item, checks it answers, then removes it.
+  install:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Let systemd user services run without a desktop session
+        if: runner.os == 'Linux'
+        run: |
+          sudo loginctl enable-linger "$USER"
+          echo "XDG_RUNTIME_DIR=/run/user/$(id -u)" >> "$GITHUB_ENV"
+      # The login item gets its token from gh, as it would on a laptop.
+      - name: Sign gh in
+        shell: bash
+        run: env -u GITHUB_TOKEN gh auth login --with-token --insecure-storage <<< "$GITHUB_TOKEN"
+      - name: Install, check it finds a real PR, uninstall
+        shell: bash
+        run: |
+          go build -o "$RUNNER_TEMP/bin/" .
+          export PATH="$RUNNER_TEMP/bin:$PATH"
+          pr-jump install --owner beastawakens --port 7799
+          # Wait for the first index, then expect a PR page rather than the search page.
+          for i in $(seq 1 120); do
+            location=$(curl -s -o /dev/null -w '%{redirect_url}' -H 'Sec-Fetch-Site: none' 'http://127.0.0.1:7799/?q=1') || true
+            case "$location" in */pull/1) break ;; esac
+            sleep 1
+          done
+          echo "location: $location"
+          case "$location" in */pull/1) ;; *) exit 1 ;; esac
+          pr-jump uninstall
+          sleep 3
+          ! curl -s -o /dev/null 'http://127.0.0.1:7799/?q=1'
+      - name: Show the service log
+        if: failure()
+        shell: bash
+        run: |
+          cat ~/.local/share/pr-jump/server.log 2>/dev/null || true
+          [ "$RUNNER_OS" = Linux ] && journalctl --user -u pr-jump --no-pager | tail -50 || true
+
+  goreleaser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: check
