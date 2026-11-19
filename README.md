@@ -59,7 +59,7 @@ This checks the owners exist, then starts pr-jump straight away and at every log
 
 The first index takes about a minute for 25,000 PRs. Until it finishes, lookups go to GitHub's search page instead.
 
-Run `pr-jump install` again to change the owners or port, or after upgrading pr-jump so the new version starts. To stop it starting at login, run `pr-jump uninstall`.
+Run `pr-jump install` again to change the owners or port, or after upgrading pr-jump so the new version starts. With Homebrew, run `brew update` before `brew upgrade`, or Homebrew may not see the new version for up to a day. To stop it starting at login, run `pr-jump uninstall`.
 
 On Windows, Scoop cannot update pr-jump while it is running. Run `pr-jump uninstall`, then `scoop update pr-jump`, then `pr-jump install` with your owners again.
 

@@ -6,63 +6,223 @@
 <title>pr-jump setup</title>
 <link rel="search" type="application/opensearchdescription+xml" title="pr-jump" href="/opensearch.xml">
 <style>
-  :root { --bg: #fff; --fg: #1f2328; --muted: #59636e; --line: #d1d9e0; --box: #f6f8fa; --accent: #0969da; }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --line: #3d444d; --box: #151b23; --accent: #4493f8; }
+  :root {
+    color-scheme: light dark;
+    --bg: #f4f4f6; --surface: #ffffff; --ink: #1d1a24; --muted: #5b5766; --line: #dcd9e2;
+    --accent: #9a4a00; --amber: #ffb224; --amber-ink: #2a1a00; --accent-soft: #fde8c0; --accent-line: #ecb35c; --code-ink: #5a2e00; --soft: #4a4654;
+    --ok: #1a7f37; --key: #ffffff; --key-edge: #c9c5d1; --shadow: 0 1px 0 rgba(29,26,36,.04), 0 8px 24px -12px rgba(29,26,36,.18);
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   }
-  body { background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; margin: 0 auto; max-width: 44rem; padding: 2rem 1rem; }
-  h1 { font-size: 1.6rem; margin: 0 0 .25rem; }
-  h2 { font-size: 1.15rem; margin: 2rem 0 .5rem; }
-  p, li { color: var(--fg); }
-  .muted { color: var(--muted); }
-  code { background: var(--box); border: 1px solid var(--line); border-radius: 4px; padding: .1rem .3rem; font-size: .95em; }
-  .url { display: flex; gap: .5rem; align-items: center; background: var(--box); border: 1px solid var(--line); border-radius: 6px; padding: .5rem .75rem; }
-  .url code { border: 0; background: none; padding: 0; flex: 1; overflow-wrap: anywhere; }
-  button { font: inherit; padding: .3rem .8rem; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); cursor: pointer; }
-  button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  section.browser { border: 1px solid var(--line); border-radius: 6px; padding: 0 1rem; margin: .75rem 0; }
-  section.browser.yours { border-color: var(--accent); }
-  section.browser h3 { font-size: 1rem; margin: .75rem 0 .25rem; }
-  .yours-label { display: none; color: var(--accent); font-weight: 600; }
-  section.browser.yours .yours-label { display: inline; }
-  ol { padding-left: 1.25rem; }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15131a; --surface: #1e1b25; --ink: #ece9f1; --muted: #a7a2b2; --line: #34303d;
+      --accent: #ffb547; --amber: #ffb547; --amber-ink: #2a1a00; --accent-soft: #2e2416; --accent-line: #6b4a1c; --code-ink: #ffd89a; --soft: #c2bdcc;
+      --ok: #3fb950; --key: #2a2632; --key-edge: #121016; --shadow: 0 8px 28px -14px rgba(0,0,0,.7);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--bg); }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 var(--sans); -webkit-text-size-adjust: 100%; }
+  main { max-width: 46rem; margin: 0 auto; padding: 2.5rem 1rem 4rem; }
+  code, kbd { font-family: var(--mono); font-size: .9em; }
+  code { background: var(--accent-soft); color: var(--code-ink); border-radius: 4px; padding: .08em .35em; overflow-wrap: anywhere; }
+  p, li { text-wrap: pretty; }
+  .nw { white-space: nowrap; }
+  a { color: var(--accent); }
+  :focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; border-radius: 4px; }
+
+  /* Key caps */
+  kbd {
+    display: inline-block; min-width: 1.9em; padding: .1em .45em .18em; text-align: center; line-height: 1.3;
+    color: var(--ink); background: var(--key); border: 1px solid var(--key-edge); border-bottom-width: 3px; border-radius: 6px;
+  }
+
+  /* Header */
+  .mark { margin-bottom: 1.5rem; display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 7px; background: var(--amber); color: var(--amber-ink); font: 700 .95rem/1 var(--mono); letter-spacing: -.02em; }
+  h1 { font: 600 clamp(2rem, 6vw, 2.6rem)/1.1 var(--mono); letter-spacing: -.04em; margin: 0 0 .75rem; }
+  .status { display: flex; align-items: baseline; gap: .6rem; margin: 0 0 2rem; color: var(--muted); }
+  .dot { flex: none; width: .6rem; height: .6rem; border-radius: 50%; background: var(--ok); margin-left: 4px; transform: translateY(-.05rem); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 20%, transparent); }
+  .status.building .dot { background: var(--amber); box-shadow: 0 0 0 4px color-mix(in srgb, var(--amber) 25%, transparent); animation: pulse 1.6s ease-in-out infinite; }
+
+  /* Address bar demo */
+  .demo { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 1rem; margin-bottom: 3rem; }
+  .omnibox { display: flex; align-items: center; gap: 0; min-width: 0; padding: .7rem .9rem; border-radius: 999px; background: var(--bg); border: 2px solid var(--amber); font: 500 1.05rem var(--mono); }
+  .omnibox svg { flex: none; color: var(--muted); margin-right: .55rem; }
+  .chip { flex: none; overflow: hidden; white-space: nowrap; margin-right: .5rem; padding: .1rem .55rem; border-radius: 6px; background: var(--amber); color: var(--amber-ink); font-size: .85em; font-weight: 600; }
+  .typed, .kw { white-space: nowrap; overflow: hidden; }
+  .kw { width: 0; }
+  .caret { display: inline-block; width: 2px; height: 1.15em; background: var(--ink); vertical-align: -.2em; margin-left: 1px; }
+  .result { margin: .65rem .4rem 0; display: flex; gap: .5rem; align-items: baseline; color: var(--muted); font-size: .95rem; }
+  .keys { margin: 1rem .4rem 0; padding-top: 1rem; border-top: 1px dashed var(--line); display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; font-size: .95rem; color: var(--muted); }
+  .keys .num { font-family: var(--mono); color: var(--ink); font-weight: 600; padding: .1em .3em; border-radius: 6px; }
+  .keys .note { flex-basis: 100%; font-size: .875rem; margin-top: .25rem; }
+
+  /* Steps */
+  h2 { font: 700 1.35rem/1.25 var(--sans); letter-spacing: -.01em; margin: 0 0 1.5rem; }
+  .steps { list-style: none; margin: 0; padding: 0; counter-reset: step; }
+  .step { position: relative; counter-increment: step; padding: 0 0 1.6rem 3.25rem; }
+  .step::before {
+    content: counter(step); position: absolute; left: 0; top: -.15rem; width: 2.1rem; height: 2.1rem; display: grid; place-items: center;
+    border-radius: 50%; background: var(--ink); color: var(--bg); font: 700 1rem/1 var(--mono);
+  }
+  .step:not(:last-child)::after { content: ""; position: absolute; left: 1.05rem; top: 2.3rem; bottom: .35rem; border-left: 2px dotted var(--line); }
+  .step > h3 { font: 650 1.1rem/1.3 var(--sans); margin: 0 0 .4rem; }
+  .step > p { margin: 0 0 .75rem; }
+
+  .url { display: flex; align-items: center; gap: .5rem; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: .4rem .4rem .4rem .9rem; }
+  .url code { flex: 1; min-width: 0; background: none; color: var(--ink); padding: 0; font-size: .95rem; overflow-wrap: anywhere; }
+  #copy {
+    flex: none; font: 600 .9rem var(--sans); padding: .5rem 1rem; border-radius: 7px; cursor: pointer;
+    border: 0; background: var(--amber); color: var(--amber-ink); box-shadow: inset 0 -2px 0 rgba(0,0,0,.18);
+  }
+  #copy:hover { filter: brightness(1.05); }
+  #copy:active { box-shadow: none; transform: translateY(1px); }
+  #copied { margin: .3rem 0 0; min-height: 1.4em; font-size: .9rem; color: var(--muted); }
+
+  /* Browser cards */
+  .browsers { display: grid; gap: .75rem; margin-top: .25rem; }
+  section.browser { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.1rem; }
+  section.browser h4 { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: 0 0 .5rem; font: 650 1rem/1.35 var(--sans); }
+  section.browser p, section.browser li { font-size: .95rem; }
+  section.browser p { margin: 0 0 .6rem; }
+  section.browser p:last-child { margin-bottom: 0; }
+  section.browser ol { list-style: none; margin: 0 0 .75rem; padding: 0; counter-reset: sub; }
+  section.browser ol > li { position: relative; counter-increment: sub; margin-bottom: .55rem; padding-left: 2rem; }
+  section.browser ol > li::before {
+    content: counter(sub); position: absolute; left: 0; top: .1rem; width: 1.35rem; height: 1.35rem; display: grid; place-items: center;
+    border-radius: 50%; border: 1.5px solid var(--line); color: var(--muted); font: 600 .75rem/1 var(--mono);
+  }
+  section.browser.yours ol > li::before { border-color: var(--amber); background: var(--amber); color: var(--amber-ink); }
+  .aside { color: var(--muted); }
+  .yours-label { display: none; font: 600 .78rem/1 var(--sans); padding: .3rem .55rem; border-radius: 999px; background: var(--amber); color: var(--amber-ink); }
+  section.browser.yours { border: 2px solid var(--amber); padding: 1.15rem 1.2rem; box-shadow: 0 0 0 5px color-mix(in srgb, var(--amber) 18%, transparent), var(--shadow); }
+  section.browser.yours .yours-label { display: inline-block; }
+  section.browser.yours h4 { font-size: 1.08rem; }
+  .browsers:has(.yours) section.browser:not(.yours) { color: var(--soft); background: transparent; }
+  .browsers:has(.yours) section.browser:not(.yours) h4 { color: var(--ink); }
+
+  .addresses { list-style: none; margin: .5rem 0 0; padding: 0; display: grid; gap: .3rem; }
+  .browser .addresses li { margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0 .6rem; align-items: baseline; }
+  .addresses code { background: none; color: var(--ink); padding: 0; }
+  .addresses span { min-width: 3.4rem; color: var(--muted); font-size: .875rem; }
+
+  footer { color: var(--muted); font: .85rem var(--mono); border-top: 1px solid var(--line); padding-top: 1.25rem; margin-top: .5rem; }
+
+  @keyframes blink { 50% { opacity: 0; } }
+  /* Demo: shows the result, clears, types "pr 5219", presses Enter. 9s a loop, 3 loops, ends on the result. */
+  @media (prefers-reduced-motion: no-preference) {
+    .caret { animation: blink 1.1s steps(1) infinite; }
+    .chip, .kw, .typed, .result { animation: 9s step-end 3 both; }
+    .chip { animation-name: chip; }
+    .kw { animation-name: kw; }
+    .typed { animation-name: digits; }
+    .result { animation-name: result; }
+    .keys kbd { animation: press 9s linear var(--at) 3 none; }
+    .keys .num { animation: pressnum 9s linear 3.6s 3 none; }
+  }
+  @keyframes chip {
+    0%, 33%, 100% { max-width: 8em; padding-inline: .55rem; margin-right: .5rem; opacity: 1; }
+    13% { max-width: 0; padding-inline: 0; margin-right: 0; opacity: 0; }
+  }
+  @keyframes kw { 0% { width: 0; } 20% { width: 1ch; } 26% { width: 2ch; } 33%, 100% { width: 0; } }
+  @keyframes digits { 0% { width: 4ch; } 13% { width: 0; } 40% { width: 1ch; } 45% { width: 2ch; } 50% { width: 3ch; } 55%, 100% { width: 4ch; } }
+  @keyframes result { 0% { opacity: 1; } 13% { opacity: 0; } 66%, 100% { opacity: 1; } }
+  @keyframes press { 0%, 4% { background: var(--amber); color: var(--amber-ink); border-color: color-mix(in srgb, var(--amber) 60%, #000); transform: translateY(2px); } 6%, 100% { background: var(--key); color: var(--ink); border-color: var(--key-edge); transform: none; } }
+  @keyframes pressnum { 0%, 17% { background: var(--amber); color: var(--amber-ink); } 19%, 100% { background: transparent; color: var(--ink); } }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--amber) 10%, transparent); } }
+  @media (max-width: 30rem) {
+    main { padding-top: 1.75rem; }
+    .step { padding-left: 0; }
+    .step > h3 { display: flex; align-items: center; min-height: 1.9rem; padding-left: 2.6rem; margin-bottom: .6rem; }
+    .step::before { top: 0; width: 1.9rem; height: 1.9rem; font-size: .9rem; }
+    .step:not(:last-child)::after { display: none; }
+    .url code { font-size: .85rem; }
+    .browser .addresses li { flex-direction: column; }
+    .addresses code { font-size: .8rem; }
+    .addresses li + li { margin-top: .35rem; }
+    .omnibox { font-size: .95rem; padding: .6rem .75rem; }
+    section.browser, section.browser.yours { padding: .9rem; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
 </style>
 </head>
 <body>
-<h1>pr-jump is running</h1>
-{{if .PRs}}<p class="muted">Indexing {{.PRs}} pull requests for {{.Owners}}.</p>
-{{else}}<p class="muted">Building the index for {{.Owners}}. This takes a minute or two; until then, the shortcut opens GitHub's search.</p>{{end}}
+<main>
+  <div class="mark" aria-hidden="true">pr</div>
+  <h1>pr-jump is running</h1>
+  {{if .PRs}}<p class="status"><span class="dot" aria-hidden="true"></span><span>Indexing {{.PRs}} pull requests for {{.Owners}}.</span></p>
+  {{else}}<p class="status building"><span class="dot" aria-hidden="true"></span><span>Building the index for {{.Owners}}. This takes a minute or two; until then, the shortcut opens GitHub's search.</span></p>{{end}}
 
-<h2>Add the search shortcut to your browser</h2>
-<p>Your browser sends whatever you type after the shortcut to this address:</p>
-<div class="url"><code id="template">{{.Base}}/?q=%s</code><button type="button" id="copy">Copy</button></div>
-<p class="muted" id="copied" role="status"></p>
-<p>Then type <code>pr 5219</code> in the address bar to go straight to pull request 5219. Add part of a repository name, like <code>pr 42 ios</code>, to pick one when several repositories have that number.</p>
+  <div class="demo" aria-label="What the shortcut looks like in your address bar" role="img">
+    <div class="omnibox" aria-hidden="true">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>
+      <span class="chip">pr-jump</span><span class="kw">pr</span><span class="typed">5219</span><span class="caret"></span>
+    </div>
+    <p class="result" aria-hidden="true">Opens pull request 5219 on GitHub.</p>
+    <div class="keys" aria-hidden="true">
+      Type <kbd style="--at:1.8s">p</kbd><kbd style="--at:2.34s">r</kbd> <kbd style="--at:2.97s">Space</kbd> <span class="num">5219</span> <kbd style="--at:5.94s">Enter</kbd>
+      <span class="note">Chrome, Brave, Edge, Opera and Vivaldi also take <kbd>Tab</kbd> after <code>pr</code>.</span>
+    </div>
+  </div>
 
-<section class="browser" data-browser="chromium">
-  <h3>Chrome, Brave, Edge, Opera and Vivaldi <span class="yours-label">· your browser</span></h3>
-  <p>Opening this page told your browser about pr-jump, so it is already waiting in your settings.</p>
-  <ol>
-    <li>Open your browser's search engine settings: type <code>chrome://settings/searchEngines</code> in the address bar (Brave: <code>brave://settings/searchEngines</code>, Edge: <code>edge://settings/searchEngines</code>, Opera: <code>opera://settings/searchEngines</code>).</li>
-    <li>Under Site search, find pr-jump in the inactive shortcuts and choose Activate. If it is not there, choose Add and paste the address above.</li>
-    <li>Edit it and set the shortcut to <code>pr</code>.</li>
+  <h2>Add the pr shortcut to your browser</h2>
+  <ol class="steps">
+    <li class="step">
+      <h3>Copy the search address</h3>
+      <p>Your browser sends whatever you type after the shortcut to this address.</p>
+      <div class="url"><code id="template">{{.Base}}/?q=%s</code><button type="button" id="copy">Copy</button></div>
+      <p id="copied" role="status"></p>
+    </li>
+
+    <li class="step">
+      <h3>Add it to your browser as <code>pr</code></h3>
+      <div class="browsers">
+        <section class="browser" data-browser="chromium">
+          <h4>Chrome, Brave, Edge, Opera and Vivaldi <span class="yours-label">Your browser</span></h4>
+          <p>Opening this page told your browser about <span class="nw">pr-jump</span>, so it is already waiting in your settings.</p>
+          <ol>
+            <li>Open your browser's search engine settings by typing its address in the address bar:
+              <ul class="addresses">
+                <li><span>Chrome</span><code>chrome://settings/searchEngines</code></li>
+                <li><span>Brave</span><code>brave://settings/searchEngines</code></li>
+                <li><span>Edge</span><code>edge://settings/searchEngines</code></li>
+                <li><span>Opera</span><code>opera://settings/searchEngines</code></li>
+              </ul>
+            </li>
+            <li>Under Site search, find <span class="nw">pr-jump</span> in the inactive shortcuts and choose Activate. If it is not there, choose Add and paste the address from step&nbsp;1.</li>
+            <li>Edit it and set the shortcut to <code>pr</code>.</li>
+          </ol>
+          <p class="aside">Vivaldi: open Settings, then Search, and add a search engine with the nickname <code>pr</code> and the address from step&nbsp;1.</p>
+        </section>
+
+        <section class="browser" data-browser="firefox">
+          <h4>Firefox <span class="yours-label">Your browser</span></h4>
+          <ol>
+            <li>Click the search engine button at the left of the address bar, or the page actions menu, and choose Add <span class="nw">"pr-jump"</span>.</li>
+            <li>Open Settings, then Search. Under Search Shortcuts, double-click the keyword next to <span class="nw">pr-jump</span> and type <code>pr</code>.</li>
+          </ol>
+          <p class="aside">Or add a bookmark with the address from step&nbsp;1 as its URL and <code>pr</code> as its keyword.</p>
+        </section>
+
+        <section class="browser" data-browser="safari">
+          <h4>Safari <span class="yours-label">Your browser</span></h4>
+          <p>Safari cannot add its own search shortcuts. Use a Safari extension that supports keyword searches, and give it the address from step&nbsp;1.</p>
+        </section>
+      </div>
+    </li>
+
+    <li class="step">
+      <h3>Try it</h3>
+      <p>Type <code>pr 5219</code> in the address bar to go straight to pull request 5219.</p>
+      <p>If several repositories have that number, add part of a repository name, like <code>pr 42 ios</code>.</p>
+    </li>
   </ol>
-  <p class="muted">Vivaldi: Settings, then Search, then add a search engine with the nickname <code>pr</code> and the address above.</p>
-</section>
 
-<section class="browser" data-browser="firefox">
-  <h3>Firefox <span class="yours-label">· your browser</span></h3>
-  <ol>
-    <li>Click the search engine button at the left of the address bar, or the page actions menu, and choose Add "pr-jump".</li>
-    <li>Open Settings, then Search. Under Search Shortcuts, double-click the keyword next to pr-jump and type <code>pr</code>.</li>
-  </ol>
-  <p class="muted">Or add a bookmark with the address above as its URL and <code>pr</code> as its keyword.</p>
-</section>
-
-<section class="browser" data-browser="safari">
-  <h3>Safari <span class="yours-label">· your browser</span></h3>
-  <p>Safari cannot add its own search shortcuts. Use a Safari extension that supports keyword searches, and give it the address above.</p>
-</section>
+  <footer>Open {{.Base}} any time to see this page again.</footer>
+</main>
 
 <script>
   const ua = navigator.userAgent;
