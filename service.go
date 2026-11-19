@@ -138,13 +138,15 @@ func (s service) servicePath() string {
 }
 
 // install sets pr-jump up as a login item and starts it. If setupURL is not empty, it then
-// opens the setup page there, which helps add the browser shortcut.
-func install(s service, serveArgs []string, dataDir, setupURL string, out io.Writer) error {
+// opens the setup page there, which helps add the browser shortcut. firstIndex says there is
+// no index yet, so the first one will take a while.
+func install(s service, serveArgs []string, dataDir, setupURL string, firstIndex bool, out io.Writer) error {
 	if s.gh == "" {
 		return errors.New("install the GitHub CLI (gh) and run 'gh auth login' first: " +
 			"the login item gets its token from gh, because it cannot see GITHUB_TOKEN from your shell")
 	}
 	logPath := filepath.Join(dataDir, "server.log")
+	logHint := "its log goes to " + logPath
 	args := append([]string{s.exe}, serveArgs...)
 	switch s.goos {
 	case "darwin":
@@ -166,7 +168,6 @@ func install(s service, serveArgs []string, dataDir, setupURL string, out io.Wri
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(out, "Installed. pr-jump now starts at login. The first index takes a minute or two; progress goes to %s.\n", logPath)
 	case "linux":
 		if err := writeFile(s.systemdUnitPath(), systemdUnitFile(args, s.servicePath())); err != nil {
 			return err
@@ -176,8 +177,7 @@ func install(s service, serveArgs []string, dataDir, setupURL string, out io.Wri
 				return err
 			}
 		}
-		fmt.Fprintln(out, "Installed. pr-jump now starts at login. The first index takes a minute or two; "+
-			"see progress with: journalctl --user -u pr-jump -f")
+		logHint = "see its log with: journalctl --user -u pr-jump -f"
 	case "windows":
 		args = append(args, "--background", "--log", logPath)
 		if err := s.run("reg", "add", windowsRunKey, "/v", "pr-jump", "/t", "REG_SZ", "/d", windowsCommandLine(args), "/f"); err != nil {
@@ -187,9 +187,13 @@ func install(s service, serveArgs []string, dataDir, setupURL string, out io.Wri
 		if err := s.start(args[0], args[1:]...); err != nil {
 			return err
 		}
-		fmt.Fprintf(out, "Installed. pr-jump now starts at login. The first index takes a minute or two; progress goes to %s.\n", logPath)
 	default:
 		return fmt.Errorf("pr-jump cannot install itself on %s; run it with --owner from your own startup script", s.goos)
+	}
+	if firstIndex {
+		fmt.Fprintf(out, "Installed. pr-jump now starts at login. The first index takes a minute or two; %s.\n", logHint)
+	} else {
+		fmt.Fprintf(out, "Installed. pr-jump now starts at login; %s.\n", logHint)
 	}
 	if setupURL != "" {
 		if s.ready(setupURL) && s.openBrowser(setupURL) == nil {

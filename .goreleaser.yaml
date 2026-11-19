@@ -45,7 +45,7 @@ homebrew_casks:
     homepage: https://github.com/beastawakens/pr-jump
     description: Jump from a PR number in your browser's address bar to the pull request
     license: MIT
-    caveats: "Run 'pr-jump install --owner <your-org>' to start it at login, then add the browser shortcut from the README."
+    caveats: "Run 'pr-jump install --owner <your-org>' to start it at login. It then opens a page that shows how to add the browser shortcut."
     hooks:
       post:
         # The binary is not signed by Apple, so macOS would refuse to run it while quarantined.
