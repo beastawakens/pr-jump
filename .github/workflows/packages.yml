@@ -1,0 +1,92 @@
+# Installs the latest release the way users do, from each package and package manager,
+# and checks that it finds a real PR. Runs after each release, by hand, and on PRs that
+# change these checks.
+name: Packages
+
+on:
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+  workflow_dispatch:
+  pull_request:
+    paths: [.github/workflows/packages.yml, .github/check-pr-jump.sh]
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - format: deb
+            image: debian:stable-slim
+            install: apt-get update && apt-get install -y curl ca-certificates ./pr-jump.deb
+          - format: rpm
+            image: fedora:latest
+            install: dnf install -y ./pr-jump.rpm
+          - format: apk
+            image: alpine:latest
+            install: apk add curl ca-certificates && apk add --allow-untrusted ./pr-jump.apk
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download the ${{ matrix.format }} package
+        run: |
+          tag=$(gh release view -R "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          echo "VERSION=${tag#v}" >> "$GITHUB_ENV"
+          gh release download "$tag" -R "$GITHUB_REPOSITORY" -p "*_linux_amd64.${{ matrix.format }}" -O "pr-jump.${{ matrix.format }}"
+      - name: Install it in ${{ matrix.image }} and check it finds a real PR
+        run: |
+          docker run --rm -v "$PWD:/w" -w /w -e GITHUB_TOKEN="$GH_TOKEN" -e VERSION "${{ matrix.image }}" sh -ec '
+            ${{ matrix.install }}
+            pr-jump --version 2>&1 | grep -Fx "pr-jump $VERSION"
+            pr-jump --owner beastawakens --port 7799 &
+            .github/check-pr-jump.sh 7799
+          '
+
+  package-managers:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install with Homebrew
+        if: runner.os == 'macOS'
+        run: brew install beastawakens/tap/pr-jump
+      - name: Install with Scoop
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Invoke-RestMethod get.scoop.sh -OutFile install-scoop.ps1
+          .\install-scoop.ps1 -RunAsAdmin
+          $shims = "$env:USERPROFILE\scoop\shims"
+          $env:PATH = "$shims;$env:PATH"
+          scoop bucket add beastawakens https://github.com/beastawakens/scoop-bucket
+          scoop install pr-jump
+          $shims >> $env:GITHUB_PATH
+      # The login item gets its token from gh, as it would on a laptop.
+      - name: Sign gh in
+        shell: bash
+        run: env -u GITHUB_TOKEN gh auth login --with-token --insecure-storage <<< "$GITHUB_TOKEN"
+      - name: Check the version, install the login item, check it finds a real PR, uninstall
+        shell: bash
+        run: |
+          tag=$(gh release view -R "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          pr-jump --version 2>&1 | grep -Fx "pr-jump ${tag#v}"
+          pr-jump install --owner beastawakens --port 7799 --no-browser
+          .github/check-pr-jump.sh 7799
+          pr-jump uninstall
+      - name: Show the service log
+        if: failure()
+        shell: bash
+        run: cat ~/.local/share/pr-jump/server.log 2>/dev/null || true
