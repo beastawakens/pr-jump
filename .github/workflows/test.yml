@@ -11,9 +11,11 @@ permissions:
 jobs:
   test:
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          # Python 3.9 is the system Python on macOS; newer Ubuntu runners no longer ship it.
+          - os: ubuntu-24.04
             python: "3.9"
           - os: ubuntu-latest
             python: "3.13"

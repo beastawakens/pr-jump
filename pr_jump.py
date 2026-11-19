@@ -31,6 +31,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 NUMBER = re.compile(r"(?:^|[\s#/])(\d{1,9})(?=\s|$)")
 MISS_REFRESH_SECONDS = 15
 REBUILD_SECONDS = 24 * 60 * 60
+RETRY_FAILED_SECONDS = 10 * 60
 REPOS_QUERY = """query($owner: String!, $after: String) {
   repositoryOwner(login: $owner) { repositories(first: 100, after: $after, ownerAffiliations: OWNER) {
     nodes { nameWithOwner } pageInfo { hasNextPage endCursor } } } }"""
@@ -66,7 +67,8 @@ def github(path, body=None, attempts=4):
                 return json.load(response)
         except urllib.error.HTTPError as error:
             wait = error.headers.get("Retry-After")
-            if attempt == attempts - 1 or not (error.code >= 500 or error.code == 429 or wait):
+            # 499 is GitHub's answer when a GraphQL query times out.
+            if attempt == attempts - 1 or not (error.code >= 499 or error.code == 429 or wait):
                 raise
             delay = int(wait) if wait and wait.isdigit() else 2 ** attempt
         except (OSError, http.client.HTTPException):  # Timeouts, resets and truncated replies.
@@ -110,7 +112,9 @@ def save(rows, path=None, keep=None):
             clauses = ["repo like ?" if k.endswith("/") else "repo = ?" for k in keep]
             params = [k + "%" if k.endswith("/") else k for k in keep]
             db.execute("delete from prs" + (f" where not ({' or '.join(clauses)})" if keep else ""), params)
-            db.execute("insert or replace into meta values ('rebuilt_at', ?)", (time.time(),))
+            # If anything failed, make the next rebuild due in RETRY_FAILED_SECONDS, not a day.
+            rebuilt_at = time.time() - (REBUILD_SECONDS - RETRY_FAILED_SECONDS if keep else 0)
+            db.execute("insert or replace into meta values ('rebuilt_at', ?)", (rebuilt_at,))
         db.executemany("insert or replace into prs values (?, ?, ?)", rows)
     db.close()
 
