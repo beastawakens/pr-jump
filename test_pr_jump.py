@@ -181,6 +181,12 @@ class RefreshTest(IndexTest):
 
 
 class RebuildTest(IndexTest):
+    def rebuilt_at(self):
+        db = pr_jump.connect()
+        value = db.execute("select value from meta where key = 'rebuilt_at'").fetchone()[0]
+        db.close()
+        return value
+
     def test_pages_through_repos_and_prs(self):
         def page(nodes, cursor=None):
             return {"nodes": nodes, "pageInfo": {"hasNextPage": cursor is not None, "endCursor": cursor}}
@@ -203,6 +209,7 @@ class RebuildTest(IndexTest):
         self.assertEqual(pr_jump.lookup(1, ""), "other/web")
         self.assertEqual(pr_jump.lookup(2, ""), "acme/api")
         self.assertIsNone(pr_jump.lookup(42, ""))
+        self.assertAlmostEqual(self.rebuilt_at(), time.time(), delta=5)
 
     def test_failures_keep_old_rows_and_skip_missing_owners(self):
         pr_jump.owners = ["acme", "ghost"]
@@ -227,6 +234,9 @@ class RebuildTest(IndexTest):
         self.assertIsNone(pr_jump.lookup(5219, ""))  # dropped: acme/api no longer has it
         self.assertEqual(pr_jump.lookup(1, ""), "acme/api")
         self.assertIn("ghost", " ".join(str(c) for c in log.call_args_list))
+        # Failures make the next rebuild due in ten minutes, not a day.
+        self.assertAlmostEqual(self.rebuilt_at(), time.time() - pr_jump.REBUILD_SECONDS + pr_jump.RETRY_FAILED_SECONDS,
+                               delta=5)
 
     def test_no_repositories_at_all_raises_and_keeps_index(self):
         with mock.patch.object(pr_jump, "github", return_value={"data": {"repositoryOwner": None}}), \
@@ -267,6 +277,12 @@ class GithubRetryTest(unittest.TestCase):
         with mock.patch.object(pr_jump.urllib.request, "urlopen", side_effect=effects) as urlopen:
             self.assertEqual(pr_jump.github("/x"), {"ok": True})
         self.assertEqual(urlopen.call_count, 3)
+
+    def test_retries_graphql_timeouts(self):
+        with mock.patch.object(pr_jump.urllib.request, "urlopen",
+                               side_effect=[self.http_error(499), self.response()]) as urlopen:
+            pr_jump.github("/graphql")
+        self.assertEqual(urlopen.call_count, 2)
 
     def test_honours_retry_after(self):
         effects = [self.http_error(403, {"Retry-After": "7"}), self.response()]
