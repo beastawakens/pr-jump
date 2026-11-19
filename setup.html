@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pr-jump setup</title>
+<link rel="search" type="application/opensearchdescription+xml" title="pr-jump" href="/opensearch.xml">
+<style>
+  :root { --bg: #fff; --fg: #1f2328; --muted: #59636e; --line: #d1d9e0; --box: #f6f8fa; --accent: #0969da; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --line: #3d444d; --box: #151b23; --accent: #4493f8; }
+  }
+  body { background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; margin: 0 auto; max-width: 44rem; padding: 2rem 1rem; }
+  h1 { font-size: 1.6rem; margin: 0 0 .25rem; }
+  h2 { font-size: 1.15rem; margin: 2rem 0 .5rem; }
+  p, li { color: var(--fg); }
+  .muted { color: var(--muted); }
+  code { background: var(--box); border: 1px solid var(--line); border-radius: 4px; padding: .1rem .3rem; font-size: .95em; }
+  .url { display: flex; gap: .5rem; align-items: center; background: var(--box); border: 1px solid var(--line); border-radius: 6px; padding: .5rem .75rem; }
+  .url code { border: 0; background: none; padding: 0; flex: 1; overflow-wrap: anywhere; }
+  button { font: inherit; padding: .3rem .8rem; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); cursor: pointer; }
+  button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  section.browser { border: 1px solid var(--line); border-radius: 6px; padding: 0 1rem; margin: .75rem 0; }
+  section.browser.yours { border-color: var(--accent); }
+  section.browser h3 { font-size: 1rem; margin: .75rem 0 .25rem; }
+  .yours-label { display: none; color: var(--accent); font-weight: 600; }
+  section.browser.yours .yours-label { display: inline; }
+  ol { padding-left: 1.25rem; }
+</style>
+</head>
+<body>
+<h1>pr-jump is running</h1>
+{{if .PRs}}<p class="muted">Indexing {{.PRs}} pull requests for {{.Owners}}.</p>
+{{else}}<p class="muted">Building the index for {{.Owners}}. This takes a minute or two; until then, the shortcut opens GitHub's search.</p>{{end}}
+
+<h2>Add the search shortcut to your browser</h2>
+<p>Your browser sends whatever you type after the shortcut to this address:</p>
+<div class="url"><code id="template">{{.Base}}/?q=%s</code><button type="button" id="copy">Copy</button></div>
+<p class="muted" id="copied" role="status"></p>
+<p>Then type <code>pr 5219</code> in the address bar to go straight to pull request 5219. Add part of a repository name, like <code>pr 42 ios</code>, to pick one when several repositories have that number.</p>
+
+<section class="browser" data-browser="chromium">
+  <h3>Chrome, Brave, Edge, Opera and Vivaldi <span class="yours-label">· your browser</span></h3>
+  <p>Opening this page told your browser about pr-jump, so it is already waiting in your settings.</p>
+  <ol>
+    <li>Open your browser's search engine settings: type <code>chrome://settings/searchEngines</code> in the address bar (Brave: <code>brave://settings/searchEngines</code>, Edge: <code>edge://settings/searchEngines</code>, Opera: <code>opera://settings/searchEngines</code>).</li>
+    <li>Under Site search, find pr-jump in the inactive shortcuts and choose Activate. If it is not there, choose Add and paste the address above.</li>
+    <li>Edit it and set the shortcut to <code>pr</code>.</li>
+  </ol>
+  <p class="muted">Vivaldi: Settings, then Search, then add a search engine with the nickname <code>pr</code> and the address above.</p>
+</section>
+
+<section class="browser" data-browser="firefox">
+  <h3>Firefox <span class="yours-label">· your browser</span></h3>
+  <ol>
+    <li>Click the search engine button at the left of the address bar, or the page actions menu, and choose Add "pr-jump".</li>
+    <li>Open Settings, then Search. Under Search Shortcuts, double-click the keyword next to pr-jump and type <code>pr</code>.</li>
+  </ol>
+  <p class="muted">Or add a bookmark with the address above as its URL and <code>pr</code> as its keyword.</p>
+</section>
+
+<section class="browser" data-browser="safari">
+  <h3>Safari <span class="yours-label">· your browser</span></h3>
+  <p>Safari cannot add its own search shortcuts. Use a Safari extension that supports keyword searches, and give it the address above.</p>
+</section>
+
+<script>
+  const ua = navigator.userAgent;
+  const browser = /Firefox\//.test(ua) ? "firefox"
+    : /Chrome\/|Chromium\/|Edg\//.test(ua) ? "chromium"
+    : /Safari\//.test(ua) ? "safari" : "";
+  const mine = document.querySelector(`[data-browser="${browser}"]`);
+  if (mine) {
+    mine.classList.add("yours");
+    mine.parentNode.insertBefore(mine, document.querySelector("section.browser"));
+  }
+  document.getElementById("copy").addEventListener("click", async () => {
+    const status = document.getElementById("copied");
+    try {
+      await navigator.clipboard.writeText(document.getElementById("template").textContent);
+      status.textContent = "Copied.";
+    } catch {
+      status.textContent = "Could not copy. Select the address and copy it yourself.";
+    }
+  });
+</script>
+</body>
+</html>
