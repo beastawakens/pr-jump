@@ -14,73 +14,50 @@ pr-jump is a small local server that keeps an index of every pull request owned 
 
 When several repositories have a PR with the same number, the newest PR wins. Small numbers are often shared by many repositories, so add part of the repository name to choose one.
 
-## Requirements
-
-- Python 3.9 or later. pr-jump uses only the standard library.
-- The [GitHub CLI](https://cli.github.com/), signed in with `gh auth login`, or a `GITHUB_TOKEN` environment variable. The token needs read access to the repositories you index. If your organisation uses SAML single sign-on, authorise the token for it.
-
 ## Install
 
-Clone the repository somewhere it can stay, because the service runs the script from there:
+### macOS and Linux, with Homebrew
 
 ```sh
-git clone https://github.com/beastawakens/pr-jump.git ~/src/pr-jump
+brew install beastawakens/tap/pr-jump
 ```
 
-Then set it up to start when you log in. Replace `my-org` with your GitHub organisation or username. Repeat `--owner` to index more than one.
-
-### macOS
+### Windows, with Scoop
 
 ```sh
-~/src/pr-jump/install-macos.sh --owner my-org --owner my-username
+scoop bucket add beastawakens https://github.com/beastawakens/scoop-bucket
+scoop install pr-jump
 ```
 
-The installer checks the owners exist, then creates a launch agent called `local.pr-jump` and starts it. Run the script again to change the owners or port.
+### Debian, Ubuntu, Fedora, Alpine and others
 
-The launch agent gets its token from `gh`, so the installer needs `gh` signed in. It cannot see a `GITHUB_TOKEN` set in your shell. To remove it, run `~/src/pr-jump/install-macos.sh --uninstall`.
+Download the `.deb`, `.rpm` or `.apk` package for your system from the [latest release](https://github.com/beastawakens/pr-jump/releases/latest), then install it, for example with `sudo apt install ./pr-jump_*_linux_amd64.deb`.
 
-### Linux
+### With Go, or by hand
 
-Create `~/.config/systemd/user/pr-jump.service`:
+Run `go install github.com/beastawakens/pr-jump@latest`, or download the archive for your system from the [latest release](https://github.com/beastawakens/pr-jump/releases/latest) and put `pr-jump` somewhere on your `PATH`.
 
-```ini
-[Unit]
-Description=pr-jump
+## Set it up
 
-[Service]
-ExecStart=/usr/bin/python3 %h/src/pr-jump/pr_jump.py --owner my-org
-Restart=always
+pr-jump needs the [GitHub CLI](https://cli.github.com/), signed in with `gh auth login`. That gives it a token with read access to your repositories. If your organisation uses SAML single sign-on, authorise the token for it.
 
-[Install]
-WantedBy=default.target
-```
-
-Then start it:
+Start pr-jump at login. Replace `my-org` with your GitHub organisation or username, and repeat `--owner` to index more than one:
 
 ```sh
-systemctl --user daemon-reload
-systemctl --user enable --now pr-jump
+pr-jump install --owner my-org --owner my-username
 ```
 
-If `gh` is not in `/usr/bin` or `/usr/local/bin`, add `Environment=PATH=/path/to/gh/dir:/usr/bin:/bin` under `[Service]`.
+This checks the owners exist, then starts pr-jump straight away and at every login:
 
-### Windows
-
-Use Task Scheduler to run this when you log on:
-
-```
-pythonw C:\path\to\pr-jump\pr_jump.py --owner my-org
-```
-
-### Any system, by hand
-
-```sh
-python3 pr_jump.py --owner my-org
-```
+- on macOS, as a launch agent called `local.pr-jump`, logging to `~/.local/share/pr-jump/server.log`
+- on Linux, as a systemd user service called `pr-jump`; see its log with `journalctl --user -u pr-jump -f`
+- on Windows, from your Run registry key, logging to `%USERPROFILE%\.local\share\pr-jump\server.log`
 
 The first index takes about a minute for 25,000 PRs. Until it finishes, lookups go to GitHub's search page instead.
 
-If an owner does not exist, pr-jump stops with an error. Check the owners with `--validate` first.
+Run `pr-jump install` again to change the owners or port, or after upgrading pr-jump so the new version starts. To stop it starting at login, run `pr-jump uninstall`.
+
+To run it in a terminal instead, without installing, run `pr-jump --owner my-org`. That can also use a `GITHUB_TOKEN` environment variable instead of the GitHub CLI. The login item cannot, because it does not see your shell's environment.
 
 ## Set up your browser
 
@@ -90,7 +67,7 @@ Each browser needs a search shortcut that sends what you type after `pr` to this
 http://127.0.0.1:7777/?q=%s
 ```
 
-`%s` stands for what you type. If you chose another port, change `7777` to match. You can use any shortcut you like instead of `pr`.
+`%s` stands for what you type. If you chose another port with `--port`, change `7777` to match. You can use any shortcut you like instead of `pr`.
 
 ### Chrome, Brave, Edge and Opera
 
@@ -139,15 +116,15 @@ Your browser only sends a bare number to your default search engine. You could m
 
 ## How it works
 
-- On first start, pr-jump uses the GitHub GraphQL API to list every PR number, repository and creation date for your owners. It stores them in a SQLite file in `~/.local/share/pr-jump/` (or `$XDG_DATA_HOME/pr-jump/`).
-- Every 2 minutes, it asks the GitHub search API for PRs opened since the newest one it has. Change the interval with `--refresh <seconds>`.
-- Once a day, it rebuilds the whole index. This picks up repositories that were moved into your organisation and drops deleted ones. If a repository fails to load, its old entries stay until the next rebuild.
+- On first start, pr-jump uses the GitHub GraphQL API to list every PR number, repository and creation date for your owners. It stores them in a SQLite file in `~/.local/share/pr-jump/` (or `$XDG_DATA_HOME/pr-jump/`). Choose another folder with `--data-dir`.
+- Every 2 minutes, it asks the GitHub search API for PRs opened since the newest one it has. Change the interval with `--refresh`, for example `--refresh 5m`.
+- Once a day, it rebuilds the whole index. This picks up repositories that were moved into your organisation and drops deleted ones. If a repository fails to load, its old entries stay, and the next rebuild runs 10 minutes later.
 - If you ask for a number it does not have, it checks GitHub for new PRs before sending you to the search page. This takes a second or two, and happens at most once every 15 seconds. It never waits for a rebuild.
 
 To rebuild the index straight away:
 
 ```sh
-python3 pr_jump.py --owner my-org --rebuild
+pr-jump --owner my-org --rebuild
 ```
 
 Use the same owners as the running service, because each set of owners has its own index file. The running server picks up the new index straight away.
@@ -160,12 +137,14 @@ Use the same owners as the running service, because each set of owners has its o
 
 ## Development
 
-Run the tests with:
+pr-jump is a single Go program with one dependency, a pure-Go SQLite driver. Run the tests with:
 
 ```sh
-python3 -m unittest -v
+go test -race ./...
 ```
 
-The installer test runs only on macOS. It uses a stand-in for `launchctl`, so it never changes your real launch agents.
+The install tests use stand-ins for `launchctl`, `systemctl`, `reg` and `taskkill`, so they never change your login items. CI also installs pr-jump as a real login item on macOS, Linux and Windows, checks it answers, and removes it again.
 
-The macOS install has been tested. The Linux, Windows and browser instructions have not.
+To release, push a tag such as `v1.0.0`. GoReleaser builds every archive and package, publishes the GitHub release, and updates the Homebrew tap and Scoop bucket.
+
+The macOS binary is not signed by Apple. The Homebrew cask removes macOS's quarantine flag so it can run.

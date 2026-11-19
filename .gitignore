@@ -1,4 +1,6 @@
-__pycache__/
+dist/
+/pr-jump
+/pr-jump.exe
 *.db
 *.db-shm
 *.db-wal

@@ -1,0 +1,62 @@
+# Builds and publishes a release when a v* tag is pushed. See .github/workflows/release.yml.
+version: 2
+project_name: pr-jump
+
+builds:
+  - env: [CGO_ENABLED=0]
+    goos: [darwin, linux, windows]
+    goarch: [amd64, arm64]
+    ldflags: ["-s -w -X main.version={{ .Version }}"]
+
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files: [README.md, LICENSE]
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  use: github-native
+
+# .deb, .rpm and .apk packages, attached to each GitHub release.
+nfpms:
+  - package_name: pr-jump
+    homepage: https://github.com/beastawakens/pr-jump
+    maintainer: beastawakens <beastawakens@users.noreply.github.com>
+    description: Type a pull request number in your browser's address bar and go straight to the PR.
+    license: MIT
+    formats: [deb, rpm, apk]
+
+# brew install beastawakens/tap/pr-jump, on macOS and Linux.
+homebrew_casks:
+  - name: pr-jump
+    repository:
+      owner: beastawakens
+      name: homebrew-tap
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    homepage: https://github.com/beastawakens/pr-jump
+    description: Jump from a PR number in your browser's address bar to the pull request
+    license: MIT
+    caveats: "Run 'pr-jump install --owner <your-org>' to start it at login, then add the browser shortcut from the README."
+    hooks:
+      post:
+        # The binary is not signed by Apple, so macOS would refuse to run it while quarantined.
+        install_steps: |
+          on_macos do
+            run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/pr-jump"]
+          end
+
+# scoop bucket add beastawakens https://github.com/beastawakens/scoop-bucket; scoop install pr-jump
+scoops:
+  - name: pr-jump
+    repository:
+      owner: beastawakens
+      name: scoop-bucket
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    homepage: https://github.com/beastawakens/pr-jump
+    description: Type a pull request number in your browser's address bar and go straight to the PR.
+    license: MIT
